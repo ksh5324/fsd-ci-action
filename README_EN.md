@@ -1,25 +1,24 @@
 # FSD CI Checks
 
-Steiger 기반 FSD 검사와 lint/type/build를 한 번에 실행하고, 결과를 Summary/PR 코멘트로 보기 쉽게 정리해주는 CI Action입니다.
-FSD/타입/린트/빌드 상태를 한눈에 확인할 수 있어 PR 리뷰와 품질 확인이 빠릅니다.
-English version: [README_EN.md](README_EN.md)
+A GitHub Action that runs Steiger-based FSD checks plus lint/type/build in one go, and summarizes results in the Summary tab and PR comments.
+It helps reviewers see FSD/type/lint/build status at a glance.
 
-## 동작 방식
+## How It Works
 
-- `install`(선택) → `lint` → `typecheck` → `fsd` → `build` 순서로 실행됩니다.
-- 각 명령의 종료 코드를 기록하고, 실패 시 로그를 파싱해 `issues.tsv`/`ci-report.md`로 요약합니다.
-- 기본값 기준으로 `lint`, `typecheck`, `fsd`, `build` 중 하나라도 실패하면 워크플로가 실패합니다.
-  (필요하면 워크플로에서 출력값을 기준으로 성공/실패 정책을 커스터마이즈할 수 있습니다.)
+- Runs in order: `install` (optional) -> `lint` -> `typecheck` -> `fsd` -> `build`.
+- Captures each command's exit code and parses logs into `issues.tsv` and `ci-report.md` when failures occur.
+- With defaults, the workflow fails if any of `lint`, `typecheck`, `fsd`, or `build` fails.
+  (You can customize success/failure policy using outputs in your workflow.)
 
-## 전제조건
+## Prerequisites
 
-- Node.js 및 패키지 매니저(pnpm 기준)가 설치되어 있어야 합니다.
-- `fsd-command`에서 사용하는 FSD 검사 도구(예: `steiger`)가 프로젝트에 설치되어 있어야 합니다.
-- 기본값을 그대로 쓸 경우 `pnpm fsd:check` 스크립트가 프로젝트에 존재해야 합니다.
+- Node.js and a package manager (pnpm by default) must be available.
+- The FSD tool used by `fsd-command` (for example, `steiger`) must be installed in your project.
+- If you keep defaults, the `pnpm fsd:check` script must exist in your project.
 
-## 사용법
+## Usage
 
-기본 사용법:
+Basic usage:
 
 ```yaml
 jobs:
@@ -39,41 +38,41 @@ jobs:
           working-directory: .
 ```
 
-## 입력값
+## Inputs
 
-- `working-directory`: 작업 디렉터리 (기본: `.`)
-- `run-install`: 설치 실행 여부 (기본: `true`)
-- `install-command`: 설치 명령어 (기본: `pnpm install --frozen-lockfile`)
-- `lint-command`: lint 명령어 (기본: `pnpm exec eslint . -f unix --max-warnings=0`)
-- `typecheck-command`: typecheck 명령어 (기본: `pnpm typecheck`)
-- `fsd-command`: FSD 검사 명령어 (기본: `pnpm fsd:check`)
-- `run-build`: build 실행 여부 (기본: `true`)
-- `build-command`: build 명령어 (기본: `pnpm build`)
+- `working-directory`: Working directory (default: `.`)
+- `run-install`: Whether to run dependency install (default: `true`)
+- `install-command`: Install command (default: `pnpm install --frozen-lockfile`)
+- `lint-command`: Lint command (default: `pnpm exec eslint . -f unix --max-warnings=0`)
+- `typecheck-command`: Typecheck command (default: `pnpm typecheck`)
+- `fsd-command`: FSD check command (default: `pnpm fsd:check`)
+- `run-build`: Whether to run build (default: `true`)
+- `build-command`: Build command (default: `pnpm build`)
 
-## 출력값
+## Outputs
 
-- `lint-exit-code`: lint 명령의 종료 코드 (0=성공, 그 외=실패)
-- `typecheck-exit-code`: typecheck 명령의 종료 코드
-- `fsd-exit-code`: FSD 검사 명령의 종료 코드
-- `build-exit-code`: build 명령의 종료 코드
-- `fsd-has-errors`: FSD 오류 감지 여부 (0/1). FSD 로그가 특정 패턴을 포함할 때 1로 설정됩니다.
+- `lint-exit-code`: Exit code for lint (0 = success, non-zero = failure)
+- `typecheck-exit-code`: Exit code for typecheck
+- `fsd-exit-code`: Exit code for FSD check
+- `build-exit-code`: Exit code for build
+- `fsd-has-errors`: Whether FSD errors were detected (0/1). Set to 1 when log matches a specific pattern.
 
-## 생성 파일
+## Generated Files
 
-- `issues.tsv`: lint/typecheck/fsd 이슈를 탭 구분으로 기록한 파일
-- `ci-report.md`: 이슈를 표로 정리한 요약 리포트. `GITHUB_STEP_SUMMARY`에도 자동으로 표시됩니다.
-- 생성 위치는 `working-directory` 기준입니다.
+- `issues.tsv`: Tab-separated list of lint/typecheck/fsd issues
+- `ci-report.md`: Summary report in table format. Also shown in `GITHUB_STEP_SUMMARY`.
+- Files are created under the `working-directory`.
 
-## 표시 위치 / 활용
+## Where It Appears / How To Use
 
-- `ci-report.md`와 동일한 요약이 Actions 실행 화면의 **Summary** 탭에 표시됩니다.
-- 출력값은 워크플로에서 조건 분기나 실패 처리를 위해 사용할 수 있습니다.
-  예: `if: ${{ steps.run-checks.outputs.lint-exit-code != '0' }}`
+- The same summary as `ci-report.md` appears in the Actions run **Summary** tab.
+- Outputs can be used for conditions or custom failure policies.
+  Example: `if: ${{ steps.run-checks.outputs.lint-exit-code != '0' }}`
 
-## 요약 출력 예시
+## Summary Output Example
 
-`ci-report.md`는 아래처럼 테이블 형태로 생성됩니다(일부 예시).
-동일한 내용이 Actions Summary 탭에 표시됩니다.
+`ci-report.md` is generated like this (partial example).
+The same content appears in the Actions Summary tab.
 
 ```markdown
 <!-- ci-checks-summary -->
@@ -98,30 +97,30 @@ jobs:
 | features/auth | This slice should not depend on shared/ui |
 ```
 
-## 예시 화면
+## Screenshots
 
-실제 PR에 코멘트로 붙은 결과 화면
+Result shown as a PR comment
 
 ![PR comment usage](image/PR_use_source.png)
 
-빌드 실패가 Summary/코멘트에 표시된 화면
+Build failure shown in Summary/PR comment
 
 ![PR comment build error](image/PR_comment_build.png)
 
-lint + FSD 오류가 Summary/코멘트에 표시된 화면
+Lint + FSD errors shown in Summary/PR comment
 
 ![PR comment lint and fsd errors](image/PR_comment_lint_fsd.png)
 
-## 참고
+## Notes
 
-- FSD 파서는 `help/fsd-awk/parse-fsd-issues.sh`를 사용합니다.
-- PR 코멘트나 실패 처리 로직은 워크플로에서 추가로 구성하세요.
+- The FSD parser uses `help/fsd-awk/parse-fsd-issues.sh`.
+- Add PR comment steps or failure policy in your workflow as needed.
 
-## PR 코멘트로 사용하기
+## Use as PR Comment
 
-`ci-report.md` 내용을 PR 코멘트로 남기려면 워크플로에 단계 하나를 추가하세요.
-아래 예시는 `GITHUB_TOKEN`으로 동일 PR에 코멘트를 갱신합니다.
-`working-directory`를 변경했다면 `WORKDIR` 값과 경로도 같이 맞춰주세요.
+To post `ci-report.md` as a PR comment, add a step to your workflow.
+The example below updates the same PR comment using `GITHUB_TOKEN`.
+If you change `working-directory`, keep `WORKDIR` and `body-path` in sync.
 
 ```yaml
 jobs:
@@ -154,27 +153,27 @@ jobs:
           body-includes: "<!-- ci-checks-summary -->"
 ```
 
-## 그대로 붙여서 사용하는 전체 예시
+## Full Example You Can Copy
 
-PR 코멘트까지 포함된 실제 워크플로 예시입니다. 그대로 복사해 사용해도 됩니다.
-아래 예시는 `pnpm` 기반 프로젝트를 기준으로 합니다.
+This is a full workflow example including PR comments. You can copy it as-is.
+This example assumes a `pnpm`-based project.
 
-필요한 준비 사항:
+Required setup:
 
-- Node.js와 `pnpm`이 설치된 환경
-- `.node-version` 파일이 프로젝트에 존재 (또는 `setup-node` 입력을 직접 버전으로 변경)
-- 프로젝트에 `pnpm fsd:check`, `pnpm typecheck`, `pnpm build` 스크립트가 존재
-- FSD 검사 도구(예: `steiger`)가 프로젝트 의존성에 포함
+- Node.js and `pnpm` are installed
+- `.node-version` exists (or change `setup-node` to use `node-version` directly)
+- Project scripts: `pnpm fsd:check`, `pnpm typecheck`, `pnpm build`
+- FSD tool (for example, `steiger`) is included in dependencies
 
-## 전체 예시 플로우
+## Full Example Flow
 
-워크플로는 아래 순서로 진행됩니다.
+The workflow proceeds in this order:
 
-1) 체크아웃 → Node/pnpm 세팅 → 의존성 설치
-2) lint/typecheck/fsd/build 실행 (실패해도 계속 진행)
-3) 로그를 파싱해 `ci-report.md`/Summary 생성
-4) PR 코멘트 생성/갱신
-5) 마지막에 실패 조건을 모아 워크플로 성공/실패 결정
+1) Checkout -> Node/pnpm setup -> dependency install
+2) Run lint/typecheck/fsd/build (continue even on failure)
+3) Parse logs and generate `ci-report.md`/Summary
+4) Create or update PR comment
+5) Decide final success/failure based on collected results
 
 ```yaml
 name: CI
@@ -409,21 +408,21 @@ jobs:
           fi
 ```
 
-FSD 파서 스크립트는 이 액션 내 `help/fsd-awk/parse-fsd-issues.sh`를 사용합니다.
+The FSD parser script is `help/fsd-awk/parse-fsd-issues.sh` in this action.
 
 ## Q&A
 
-Q. PR 코멘트가 안 달려요  
-A. `permissions`에 `pull-requests: write`가 있는지 확인하세요. 포크 PR은 기본 토큰 권한이 제한됩니다. `body-path` 경로도 확인하세요.
+Q. PR comments are not showing up.
+A. Check `permissions` includes `pull-requests: write`. For forked PRs, the default token is restricted. Also verify `body-path`.
 
-Q. `ci-report.md`가 없다고 나와요  
-A. `working-directory`를 변경했다면 `WORKDIR`와 `body-path` 경로가 일치해야 합니다.
+Q. It says `ci-report.md` is missing.
+A. If you changed `working-directory`, make sure `WORKDIR` and `body-path` match.
 
-Q. FSD가 항상 실패로 나와요  
-A. `pnpm fsd:check` 스크립트와 FSD 검사 도구(예: `steiger`) 설치 여부를 확인하세요. 로그 포맷이 달라졌다면 파서가 매칭하지 못할 수 있습니다.
+Q. FSD always fails.
+A. Verify `pnpm fsd:check` exists and the FSD tool (for example, `steiger`) is installed. If log format changed, the parser may not match.
 
-Q. `.node-version`이 없어요  
-A. `actions/setup-node`에서 `node-version`을 직접 지정하세요.
+Q. I do not have `.node-version`.
+A. Set `node-version` directly in `actions/setup-node`.
 
-Q. pnpm을 안 써요  
-A. `install-command`, `lint-command`, `typecheck-command`, `fsd-command`, `build-command`를 npm/yarn 명령으로 변경해 사용하세요.
+Q. I do not use pnpm.
+A. Replace `install-command`, `lint-command`, `typecheck-command`, `fsd-command`, and `build-command` with npm/yarn commands.
