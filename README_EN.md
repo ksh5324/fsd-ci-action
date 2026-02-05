@@ -126,6 +126,8 @@ The same content appears in the Actions Summary tab.
 
 ## Screenshots
 
+Example PR: https://github.com/ksh5324/fsd-ci-check-example/pull/2
+
 Result shown as a PR comment
 
 ![PR comment usage](image/PR_use_source.png)
