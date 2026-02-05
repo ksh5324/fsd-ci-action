@@ -89,6 +89,8 @@ runs:
 
         workdir="${GITHUB_WORKSPACE}/${{ inputs.working-directory }}"
         parse_script="${GITHUB_ACTION_PATH}/help/fsd-awk/parse-fsd-issues.sh"
+        typecheck_parse_script="${GITHUB_ACTION_PATH}/help/tsc-awk/parse-typecheck-issues.sh"
+        lint_parse_script="${GITHUB_ACTION_PATH}/help/eslint-awk/parse-lint-issues.sh"
 
         cd "$workdir"
         rm -f issues.tsv ci-report.md lint.log typecheck.log fsd.log build.log
@@ -117,13 +119,7 @@ runs:
         set -e
 
         if [ "${lint_code:-0}" != "0" ] && [ -s lint.log ]; then
-          grep -E "^[^ ]+:[0-9]+:[0-9]+ " lint.log | \
-            awk -F: '{
-              file=$1;
-              msg=$4;
-              for (i=5;i<=NF;i++) msg=msg ":" $i;
-              print "lint\t" file "\t" msg
-            }' >> issues.tsv || true
+          bash "$lint_parse_script" lint.log issues.tsv || true
           if ! grep -q "^lint\t" issues.tsv 2>/dev/null; then
             tail -n 5 lint.log | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
               awk 'NF>0 {print "lint\t(see log)\t" $0}' >> issues.tsv || true
@@ -131,14 +127,7 @@ runs:
         fi
 
         if [ "${type_code:-0}" != "0" ] && [ -s typecheck.log ]; then
-          grep -E "error TS[0-9]+:" typecheck.log | \
-            awk -F: '{
-              file=$1;
-              msg=$2;
-              for (i=3;i<=NF;i++) msg=msg ":" $i;
-              sub(/^ \([0-9]+,[0-9]+\)/,"",msg);
-              print "typecheck\t" file "\t" msg
-            }' >> issues.tsv || true
+          bash "$typecheck_parse_script" typecheck.log issues.tsv || true
           if ! grep -q "^typecheck\t" issues.tsv 2>/dev/null; then
             tail -n 5 typecheck.log | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
               awk 'NF>0 {print "typecheck\t(see log)\t" $0}' >> issues.tsv || true
