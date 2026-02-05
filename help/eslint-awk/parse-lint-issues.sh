@@ -18,11 +18,15 @@ awk '
   }
   {
     line=strip_ansi($0)
+    if (line ~ /^>/) next
+    if (line ~ /^ELIFECYCLE/) next
+    if (line ~ /\(see log\)/) next
     if (line ~ /:[0-9]+:[0-9]+:/) {
       msg=line
       sub(/^[^:]+:[[:space:]]*/, "", msg)
       if (match(line, /(src\/[^[:space:]]+|app\/[^[:space:]]+|shared\/[^[:space:]]+|features\/[^[:space:]]+|entities\/[^[:space:]]+|widgets\/[^[:space:]]+|pages\/[^[:space:]]+|processes\/[^[:space:]]+)/)) {
         file=substr(line, RSTART, RLENGTH)
+        sub(/:[0-9]+:[0-9]+:.*$/, "", file)
       } else {
         file="(unknown)"
       }
