@@ -33,6 +33,26 @@ inputs:
     description: "Build command"
     default: "pnpm build"
     required: false
+  comment-on-pr:
+    description: "Whether to create/update a PR comment with the summary"
+    default: "false"
+    required: false
+  comment-mode:
+    description: "Comment update mode: update(append) or replace"
+    default: "replace"
+    required: false
+  comment-header:
+    description: "Marker header used to find/update an existing comment"
+    default: "<!-- ci-checks-summary -->"
+    required: false
+  github-token:
+    description: "GitHub token used to post PR comments (defaults to GITHUB_TOKEN)"
+    default: ""
+    required: false
+  upload-artifacts:
+    description: "Whether to upload ci-report.md, issues.tsv, and *.log as artifacts"
+    default: "false"
+    required: false
 outputs:
   lint-exit-code:
     description: "Lint exit code"
@@ -133,7 +153,7 @@ runs:
         fi
 
         {
-          echo "<!-- ci-checks-summary -->"
+          echo "${{ inputs.comment-header }}"
           echo "# CI Checks Summary"
           echo ""
           echo "## Lint"
@@ -180,3 +200,33 @@ runs:
         echo "fsd_exit_code=${fsd_code:-0}" >> "$GITHUB_OUTPUT"
         echo "build_exit_code=${build_code:-0}" >> "$GITHUB_OUTPUT"
         echo "fsd_has_errors=${fsd_has_errors:-0}" >> "$GITHUB_OUTPUT"
+
+    - name: Find existing PR comment
+      if: ${{ inputs.comment-on-pr == 'true' && github.event_name == 'pull_request' }}
+      id: find-comment
+      uses: peter-evans/find-comment@v3
+      with:
+        issue-number: ${{ github.event.pull_request.number }}
+        body-includes: ${{ inputs.comment-header }}
+
+    - name: Create or update PR comment
+      if: ${{ inputs.comment-on-pr == 'true' && github.event_name == 'pull_request' }}
+      uses: peter-evans/create-or-update-comment@v4
+      with:
+        token: ${{ inputs.github-token != '' && inputs.github-token || github.token }}
+        issue-number: ${{ github.event.pull_request.number }}
+        comment-id: ${{ steps.find-comment.outputs.comment-id }}
+        body-path: ${{ github.workspace }}/${{ inputs.working-directory }}/ci-report.md
+        body-includes: ${{ inputs.comment-header }}
+        edit-mode: ${{ inputs.comment-mode == 'update' && 'append' || 'replace' }}
+
+    - name: Upload artifacts
+      if: ${{ inputs.upload-artifacts == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: fsd-ci-report
+        if-no-files-found: ignore
+        path: |
+          ${{ github.workspace }}/${{ inputs.working-directory }}/ci-report.md
+          ${{ github.workspace }}/${{ inputs.working-directory }}/issues.tsv
+          ${{ github.workspace }}/${{ inputs.working-directory }}/*.log

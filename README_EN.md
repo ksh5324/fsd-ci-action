@@ -22,14 +22,14 @@ jobs:
         with:
           version: 10.27.0
           run_install: false
-      - uses: ksh5324/fsd-check-ci@v1
+      - uses: ksh5324/fsd-check-ci@v2
 ```
 
 ## How It Works
 
 - Runs in order: `install` (optional) -> `lint` -> `typecheck` -> `fsd` -> `build`.
-- Captures each command's exit code and parses logs into `issues.tsv` and `ci-report.md` when failures occur.
-- With defaults, the workflow fails if any of `lint`, `typecheck`, `fsd`, or `build` fails.
+- Captures each command's exit code and parses failure logs into `issues.tsv`. `ci-report.md` is always generated.
+- By default, this action only summarizes results and does not fail the workflow.
   (You can customize success/failure policy using outputs in your workflow.)
 
 ## Prerequisites
@@ -55,7 +55,7 @@ jobs:
         with:
           version: 10.27.0
           run_install: false
-      - uses: ksh5324/fsd-check-ci@v1
+      - uses: ksh5324/fsd-check-ci@v2
         with:
           working-directory: .
 ```
@@ -70,6 +70,11 @@ jobs:
 - `fsd-command`: FSD check command (default: `pnpm fsd:check`)
 - `run-build`: Whether to run build (default: `true`)
 - `build-command`: Build command (default: `pnpm build`)
+- `comment-on-pr`: Whether to create/update a PR comment (default: `false`)
+- `comment-mode`: Comment update mode (`update` = append, `replace` = overwrite) (default: `replace`)
+- `comment-header`: Marker used to find/update an existing comment (default: `<!-- ci-checks-summary -->`)
+- `github-token`: Token used to post PR comments (default: `GITHUB_TOKEN`)
+- `upload-artifacts`: Upload `ci-report.md`, `issues.tsv`, and `*.log` as artifacts (default: `false`)
 
 ## Outputs
 
@@ -140,9 +145,9 @@ Lint + FSD errors shown in Summary/PR comment
 
 ## Use as PR Comment
 
-To post `ci-report.md` as a PR comment, add a step to your workflow.
-The example below updates the same PR comment using `GITHUB_TOKEN`.
-If you change `working-directory`, keep `WORKDIR` and `body-path` in sync.
+To post `ci-report.md` as a PR comment, use the options below.
+If you use `GITHUB_TOKEN`, make sure `permissions` includes `pull-requests: write`.
+If you change `working-directory`, keep `WORKDIR` in sync.
 
 ```yaml
 jobs:
@@ -162,17 +167,13 @@ jobs:
         with:
           version: 10.27.0
           run_install: false
-      - uses: ksh5324/fsd-check-ci@v1
+      - uses: ksh5324/fsd-check-ci@v2
         with:
           working-directory: ${{ env.WORKDIR }}
-      - name: PR comment (ci-report.md)
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: peter-evans/create-or-update-comment@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          issue-number: ${{ github.event.pull_request.number }}
-          body-path: ${{ github.workspace }}/${{ env.WORKDIR }}/ci-report.md
-          body-includes: "<!-- ci-checks-summary -->"
+          comment-on-pr: true
+          comment-mode: replace
+          comment-header: "<!-- ci-checks-summary -->"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ## Full Example You Can Copy
@@ -192,10 +193,9 @@ Required setup:
 The workflow proceeds in this order:
 
 1) Checkout -> Node/pnpm setup -> dependency install
-2) Run lint/typecheck/fsd/build (continue even on failure)
-3) Parse logs and generate `ci-report.md`/Summary
-4) Create or update PR comment
-5) Decide final success/failure based on collected results
+2) Run the action (lint/typecheck/fsd/build + summary)
+3) Create or update PR comment (optional)
+4) Decide final success/failure based on outputs
 
 ```yaml
 name: CI
@@ -206,219 +206,37 @@ on:
 permissions:
   contents: read
   pull-requests: write
-  issues: write
-
-defaults:
-  run:
-    shell: bash
 
 jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 10.27.0
           run_install: false
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Lint
-        id: lint
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          set +e
-          pnpm exec eslint . -f unix --max-warnings=0 2>&1 | tee lint.log
-          status=${PIPESTATUS[0]}
-          set -e
-          echo "exit_code=${status}" >> "$GITHUB_OUTPUT"
-
-      - name: Typecheck
-        id: typecheck
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          set +e
-          pnpm typecheck 2>&1 | tee typecheck.log
-          status=${PIPESTATUS[0]}
-          set -e
-          echo "exit_code=${status}" >> "$GITHUB_OUTPUT"
-
-      - name: FSD Check
+      - name: FSD CI Checks
         id: fsd
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          set +e
-          pnpm fsd:check 2>&1 | tee fsd.log
-          status=${PIPESTATUS[0]}
-          set -e
-          echo "exit_code=${status}" >> "$GITHUB_OUTPUT"
-          if [ -s fsd.log ] && grep -qE "✗|×" fsd.log; then
-            echo "has_errors=1" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_errors=0" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Build
-        id: build
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          set +e
-          pnpm build 2>&1 | tee build.log
-          status=${PIPESTATUS[0]}
-          set -e
-          echo "exit_code=${status}" >> "$GITHUB_OUTPUT"
-
-      - name: Report Summary
-        if: always()
-        run: |
-          lint_code="${{ steps.lint.outputs.exit_code }}"
-          type_code="${{ steps.typecheck.outputs.exit_code }}"
-          fsd_code="${{ steps.fsd.outputs.exit_code }}"
-          build_code="${{ steps.build.outputs.exit_code }}"
-
-          rm -f issues.tsv
-
-          if [ "${lint_code:-0}" != "0" ] && [ -s lint.log ]; then
-            grep -E "^[^ ]+:[0-9]+:[0-9]+ " lint.log | \
-              awk -F: '{
-                file=$1;
-                msg=$4;
-                for (i=5;i<=NF;i++) msg=msg ":" $i;
-                print "lint\t" file "\t" msg
-              }' >> issues.tsv || true
-            if ! grep -q "^lint\t" issues.tsv 2>/dev/null; then
-              tail -n 5 lint.log | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
-                awk 'NF>0 {print "lint\t(see log)\t" $0}' >> issues.tsv || true
-            fi
-          fi
-
-          if [ "${type_code:-0}" != "0" ] && [ -s typecheck.log ]; then
-            grep -E "error TS[0-9]+:" typecheck.log | \
-              awk -F: '{
-                file=$1;
-                msg=$2;
-                for (i=3;i<=NF;i++) msg=msg ":" $i;
-                sub(/^ \([0-9]+,[0-9]+\)/,"",msg);
-                print "typecheck\t" file "\t" msg
-              }' >> issues.tsv || true
-            if ! grep -q "^typecheck\t" issues.tsv 2>/dev/null; then
-              tail -n 5 typecheck.log | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
-                awk 'NF>0 {print "typecheck\t(see log)\t" $0}' >> issues.tsv || true
-            fi
-          fi
-
-          if [ "${fsd_code:-0}" = "1" ] && [ -s fsd.log ]; then
-            ./help/fsd-awk/parse-fsd-issues.sh fsd.log issues.tsv || true
-            if ! grep -q "^fsd\t" issues.tsv 2>/dev/null; then
-              echo "fsd\t(see full log below)\tParser did not match FSD output format." >> issues.tsv
-            fi
-          fi
-
-          {
-            echo "<!-- ci-checks-summary -->"
-            echo "# CI Checks Summary"
-            echo ""
-            echo "## Lint"
-            echo ""
-            echo "| File | Message |"
-            echo "|---|---|"
-            if [ -s issues.tsv ]; then
-              awk -F'\t' '$1=="lint"{gsub("\\|","\\\\|",$2); gsub("\\|","\\\\|",$3); printf "| %s | %s |\n", $2, $3}' issues.tsv
-            fi
-            echo ""
-            echo "## Typecheck"
-            echo ""
-            echo "| File | Message |"
-            echo "|---|---|"
-            if [ -s issues.tsv ]; then
-              awk -F'\t' '$1=="typecheck"{gsub("\\|","\\\\|",$2); gsub("\\|","\\\\|",$3); printf "| %s | %s |\n", $2, $3}' issues.tsv
-            fi
-            echo ""
-            echo "## FSD"
-            echo ""
-            echo "| Slice | Message |"
-            echo "|---|---|"
-            if [ -s issues.tsv ]; then
-              awk -F'\t' '$1=="fsd"{gsub("\\|","\\\\|",$2); gsub("\\|","\\\\|",$3); printf "| %s | %s |\n", $2, $3}' issues.tsv
-            fi
-            echo ""
-
-            if [ "${build_code:-0}" != "0" ]; then
-              echo "## Build (errors)"
-              echo ""
-              echo '```'
-              if [ -s build.log ]; then
-                tail -n 200 build.log || true
-              else
-                echo "No build output captured."
-              fi
-              echo '```'
-              echo ""
-            fi
-          } | tee ci-report.md >> "$GITHUB_STEP_SUMMARY"
-
-          if [ ! -s issues.tsv ] && { [ "${lint_code:-0}" != "0" ] || [ "${type_code:-0}" != "0" ] || [ "${fsd_code:-0}" = "1" ]; }; then
-            {
-              echo ""
-              echo "## Raw Logs (fallback)"
-              echo ""
-              echo "### Lint"
-              echo '```'
-              [ -s lint.log ] && tail -n 120 lint.log || echo "No lint output captured."
-              echo '```'
-              echo ""
-              echo "### Typecheck"
-              echo '```'
-              [ -s typecheck.log ] && tail -n 120 typecheck.log || echo "No typecheck output captured."
-              echo '```'
-              echo ""
-              echo "### FSD"
-              echo '```'
-              [ -s fsd.log ] && tail -n 120 fsd.log || echo "No FSD output captured."
-              echo '```'
-              echo ""
-            } | tee -a ci-report.md >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Comment on PR
-        if: always() && github.event_name == 'pull_request'
-        id: find-comment
-        uses: peter-evans/find-comment@v3
+        uses: ksh5324/fsd-check-ci@v2
         with:
-          issue-number: ${{ github.event.pull_request.number }}
-          body-includes: "<!-- ci-checks-summary -->"
-
-      - name: Create or Update PR Comment
-        if: always() && github.event_name == 'pull_request'
-        uses: peter-evans/create-or-update-comment@v4
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          comment-id: ${{ steps.find-comment.outputs.comment-id }}
-          body-path: ci-report.md
-          edit-mode: replace
-
+          working-directory: .
+          comment-on-pr: true
+          comment-mode: replace
+          comment-header: "<!-- ci-checks-summary -->"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          upload-artifacts: true
       - name: Fail if checks failed
         if: ${{ always() }}
         run: |
-          lint_code="${{ steps.lint.outputs.exit_code }}"
-          type_code="${{ steps.typecheck.outputs.exit_code }}"
-          fsd_code="${{ steps.fsd.outputs.exit_code }}"
-          build_code="${{ steps.build.outputs.exit_code }}"
-          fsd_has_errors="${{ steps.fsd.outputs.has_errors }}"
+          lint_code="${{ steps.fsd.outputs.lint-exit-code }}"
+          type_code="${{ steps.fsd.outputs.typecheck-exit-code }}"
+          fsd_code="${{ steps.fsd.outputs.fsd-exit-code }}"
+          build_code="${{ steps.fsd.outputs.build-exit-code }}"
+          fsd_has_errors="${{ steps.fsd.outputs.fsd-has-errors }}"
 
           if [ "${lint_code:-0}" != "0" ] || \
              [ "${type_code:-0}" != "0" ] || \
@@ -435,10 +253,10 @@ The FSD parser script is `help/fsd-awk/parse-fsd-issues.sh` in this action.
 ## Q&A
 
 Q. PR comments are not showing up.
-A. Check `permissions` includes `pull-requests: write`. For forked PRs, the default token is restricted. Also verify `body-path`.
+A. Check `comment-on-pr: true` and `permissions` includes `pull-requests: write`. For forked PRs, the default token is restricted.
 
 Q. It says `ci-report.md` is missing.
-A. If you changed `working-directory`, make sure `WORKDIR` and `body-path` match.
+A. If you changed `working-directory`, make sure it matches the actual working directory.
 
 Q. FSD always fails.
 A. Verify `pnpm fsd:check` exists and the FSD tool (for example, `steiger`) is installed. If log format changed, the parser may not match.
