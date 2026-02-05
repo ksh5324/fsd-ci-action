@@ -409,3 +409,20 @@ jobs:
 ```
 
 FSD 파서 스크립트는 이 액션 내 `help/fsd-awk/parse-fsd-issues.sh`를 사용합니다.
+
+## Q&A
+
+Q. PR 코멘트가 안 달려요  
+A. `permissions`에 `pull-requests: write`가 있는지 확인하세요. 포크 PR은 기본 토큰 권한이 제한됩니다. `body-path` 경로도 확인하세요.
+
+Q. `ci-report.md`가 없다고 나와요  
+A. `working-directory`를 변경했다면 `WORKDIR`와 `body-path` 경로가 일치해야 합니다.
+
+Q. FSD가 항상 실패로 나와요  
+A. `pnpm fsd:check` 스크립트와 FSD 검사 도구(예: `steiger`) 설치 여부를 확인하세요. 로그 포맷이 달라졌다면 파서가 매칭하지 못할 수 있습니다.
+
+Q. `.node-version`이 없어요  
+A. `actions/setup-node`에서 `node-version`을 직접 지정하세요.
+
+Q. pnpm을 안 써요  
+A. `install-command`, `lint-command`, `typecheck-command`, `fsd-command`, `build-command`를 npm/yarn 명령으로 변경해 사용하세요.
