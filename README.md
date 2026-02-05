@@ -2,11 +2,11 @@
 
 Steiger 기반 FSD 검사와 lint/type/build를 한 번에 실행하고, 결과를 Summary/PR 코멘트로 보기 쉽게 정리해주는 CI Action입니다.
 FSD/타입/린트/빌드 상태를 한눈에 확인할 수 있어 PR 리뷰와 품질 확인이 빠릅니다.
+
 English version: [README_EN.md](README_EN.md)
 
 예시 PR 및 CI 소스: https://github.com/ksh5324/fsd-ci-check-example/pull/2
 
-노트: lint/typecheck에서 불필요한 항목이 표시되는 문제를 수정 중이며, v2.1.0으로 배포 예정입니다.
 
 ## Quick Start
 
@@ -27,7 +27,7 @@ jobs:
         with:
           version: 10.27.0
           run_install: false
-      - uses: ksh5324/fsd-ci-action@v2
+      - uses: ksh5324/fsd-ci-action@v2.1.0
 ```
 
 ## 동작 방식
@@ -60,7 +60,7 @@ jobs:
         with:
           version: 10.27.0
           run_install: false
-      - uses: ksh5324/fsd-ci-action@v2
+      - uses: ksh5324/fsd-ci-action@v2.1.0
         with:
           working-directory: .
 ```
@@ -172,7 +172,7 @@ jobs:
         with:
           version: 10.27.0
           run_install: false
-      - uses: ksh5324/fsd-ci-action@v2
+      - uses: ksh5324/fsd-ci-action@v2.1.0
         with:
           working-directory: ${{ env.WORKDIR }}
           comment-on-pr: true
@@ -189,7 +189,7 @@ jobs:
 ```yaml
       - name: FSD CI Checks
         id: fsd
-        uses: ksh5324/fsd-ci-action@v2
+        uses: ksh5324/fsd-ci-action@v2.1.0
         with:
           working-directory: .
 
@@ -257,7 +257,7 @@ jobs:
           run_install: false
       - name: FSD CI Checks
         id: fsd
-        uses: ksh5324/fsd-ci-action@v2
+        uses: ksh5324/fsd-ci-action@v2.1.0
         with:
           working-directory: .
           comment-on-pr: true
