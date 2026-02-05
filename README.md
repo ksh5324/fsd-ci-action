@@ -152,3 +152,242 @@ jobs:
           body-path: ${{ github.workspace }}/${{ env.WORKDIR }}/ci-report.md
           body-includes: "<!-- ci-checks-summary -->"
 ```
+
+## 그대로 붙여서 사용하는 전체 예시
+
+PR 코멘트까지 포함된 실제 워크플로 예시입니다. 그대로 복사해 사용해도 됩니다.
+
+```yaml
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.27.0
+          run_install: false
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        id: lint
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          set +e
+          pnpm exec eslint . -f unix --max-warnings=0 2>&1 | tee lint.log
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${status}" >> "$GITHUB_OUTPUT"
+
+      - name: Typecheck
+        id: typecheck
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          set +e
+          pnpm typecheck 2>&1 | tee typecheck.log
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${status}" >> "$GITHUB_OUTPUT"
+
+      - name: FSD Check
+        id: fsd
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          set +e
+          pnpm fsd:check 2>&1 | tee fsd.log
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${status}" >> "$GITHUB_OUTPUT"
+          if [ -s fsd.log ] && grep -qE "✗|×" fsd.log; then
+            echo "has_errors=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_errors=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        id: build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          set +e
+          pnpm build 2>&1 | tee build.log
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${status}" >> "$GITHUB_OUTPUT"
+
+      - name: Report Summary
+        if: always()
+        run: |
+          lint_code="${{ steps.lint.outputs.exit_code }}"
+          type_code="${{ steps.typecheck.outputs.exit_code }}"
+          fsd_code="${{ steps.fsd.outputs.exit_code }}"
+          build_code="${{ steps.build.outputs.exit_code }}"
+
+          rm -f issues.tsv
+
+          if [ "${lint_code:-0}" != "0" ] && [ -s lint.log ]; then
+            grep -E "^[^ ]+:[0-9]+:[0-9]+ " lint.log | \
+              awk -F: '{
+                file=$1;
+                msg=$4;
+                for (i=5;i<=NF;i++) msg=msg ":" $i;
+                print "lint\t" file "\t" msg
+              }' >> issues.tsv || true
+            if ! grep -q "^lint\t" issues.tsv 2>/dev/null; then
+              tail -n 5 lint.log | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
+                awk 'NF>0 {print "lint\t(see log)\t" $0}' >> issues.tsv || true
+            fi
+          fi
+
+          if [ "${type_code:-0}" != "0" ] && [ -s typecheck.log ]; then
+            grep -E "error TS[0-9]+:" typecheck.log | \
+              awk -F: '{
+                file=$1;
+                msg=$2;
+                for (i=3;i<=NF;i++) msg=msg ":" $i;
+                sub(/^ \([0-9]+,[0-9]+\)/,"",msg);
+                print "typecheck\t" file "\t" msg
+              }' >> issues.tsv || true
+            if ! grep -q "^typecheck\t" issues.tsv 2>/dev/null; then
+              tail -n 5 typecheck.log | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
+                awk 'NF>0 {print "typecheck\t(see log)\t" $0}' >> issues.tsv || true
+            fi
+          fi
+
+          if [ "${fsd_code:-0}" = "1" ] && [ -s fsd.log ]; then
+            ./help/fsd-awk/parse-fsd-issues.sh fsd.log issues.tsv || true
+            if ! grep -q "^fsd\t" issues.tsv 2>/dev/null; then
+              echo "fsd\t(see full log below)\tParser did not match FSD output format." >> issues.tsv
+            fi
+          fi
+
+          {
+            echo "<!-- ci-checks-summary -->"
+            echo "# CI Checks Summary"
+            echo ""
+            echo "## Lint"
+            echo ""
+            echo "| File | Message |"
+            echo "|---|---|"
+            if [ -s issues.tsv ]; then
+              awk -F'\t' '$1=="lint"{gsub("\\|","\\\\|",$2); gsub("\\|","\\\\|",$3); printf "| %s | %s |\n", $2, $3}' issues.tsv
+            fi
+            echo ""
+            echo "## Typecheck"
+            echo ""
+            echo "| File | Message |"
+            echo "|---|---|"
+            if [ -s issues.tsv ]; then
+              awk -F'\t' '$1=="typecheck"{gsub("\\|","\\\\|",$2); gsub("\\|","\\\\|",$3); printf "| %s | %s |\n", $2, $3}' issues.tsv
+            fi
+            echo ""
+            echo "## FSD"
+            echo ""
+            echo "| Slice | Message |"
+            echo "|---|---|"
+            if [ -s issues.tsv ]; then
+              awk -F'\t' '$1=="fsd"{gsub("\\|","\\\\|",$2); gsub("\\|","\\\\|",$3); printf "| %s | %s |\n", $2, $3}' issues.tsv
+            fi
+            echo ""
+
+            if [ "${build_code:-0}" != "0" ]; then
+              echo "## Build (errors)"
+              echo ""
+              echo '```'
+              if [ -s build.log ]; then
+                tail -n 200 build.log || true
+              else
+                echo "No build output captured."
+              fi
+              echo '```'
+              echo ""
+            fi
+          } | tee ci-report.md >> "$GITHUB_STEP_SUMMARY"
+
+          if [ ! -s issues.tsv ] && { [ "${lint_code:-0}" != "0" ] || [ "${type_code:-0}" != "0" ] || [ "${fsd_code:-0}" = "1" ]; }; then
+            {
+              echo ""
+              echo "## Raw Logs (fallback)"
+              echo ""
+              echo "### Lint"
+              echo '```'
+              [ -s lint.log ] && tail -n 120 lint.log || echo "No lint output captured."
+              echo '```'
+              echo ""
+              echo "### Typecheck"
+              echo '```'
+              [ -s typecheck.log ] && tail -n 120 typecheck.log || echo "No typecheck output captured."
+              echo '```'
+              echo ""
+              echo "### FSD"
+              echo '```'
+              [ -s fsd.log ] && tail -n 120 fsd.log || echo "No FSD output captured."
+              echo '```'
+              echo ""
+            } | tee -a ci-report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Comment on PR
+        if: always() && github.event_name == 'pull_request'
+        id: find-comment
+        uses: peter-evans/find-comment@v3
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-includes: "<!-- ci-checks-summary -->"
+
+      - name: Create or Update PR Comment
+        if: always() && github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          body-path: ci-report.md
+          edit-mode: replace
+
+      - name: Fail if checks failed
+        if: ${{ always() }}
+        run: |
+          lint_code="${{ steps.lint.outputs.exit_code }}"
+          type_code="${{ steps.typecheck.outputs.exit_code }}"
+          fsd_code="${{ steps.fsd.outputs.exit_code }}"
+          build_code="${{ steps.build.outputs.exit_code }}"
+          fsd_has_errors="${{ steps.fsd.outputs.has_errors }}"
+
+          if [ "${lint_code:-0}" != "0" ] || \
+             [ "${type_code:-0}" != "0" ] || \
+             [ "${build_code:-0}" != "0" ] || \
+             [ "${fsd_has_errors:-0}" = "1" ] || \
+             [ "${fsd_code:-0}" != "0" ]; then
+            echo "One or more checks failed."
+            exit 1
+          fi
+```
+
+FSD 파서 스크립트는 이 액션 내 `help/fsd-awk/parse-fsd-issues.sh`를 사용합니다.
