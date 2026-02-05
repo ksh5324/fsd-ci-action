@@ -121,16 +121,14 @@ runs:
         if [ "${lint_code:-0}" != "0" ] && [ -s lint.log ]; then
           bash "$lint_parse_script" lint.log issues.tsv || true
           if ! grep -q "^lint\t" issues.tsv 2>/dev/null; then
-            tail -n 5 lint.log | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
-              awk 'NF>0 {print "lint\t(see log)\t" $0}' >> issues.tsv || true
+            true
           fi
         fi
 
         if [ "${type_code:-0}" != "0" ] && [ -s typecheck.log ]; then
           bash "$typecheck_parse_script" typecheck.log issues.tsv || true
           if ! grep -q "^typecheck\t" issues.tsv 2>/dev/null; then
-            tail -n 5 typecheck.log | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
-              awk 'NF>0 {print "typecheck\t(see log)\t" $0}' >> issues.tsv || true
+            true
           fi
         fi
 
