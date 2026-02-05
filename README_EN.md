@@ -3,6 +3,28 @@
 A GitHub Action that runs Steiger-based FSD checks plus lint/type/build in one go, and summarizes results in the Summary tab and PR comments.
 It helps reviewers see FSD/type/lint/build status at a glance.
 
+## Quick Start
+
+1) Make sure your project has `pnpm fsd:check`, `pnpm typecheck`, and `pnpm build` scripts
+2) If you do not have `.node-version`, change `setup-node` to use `node-version`
+3) Add the minimal example below to your workflow
+
+```yaml
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.27.0
+          run_install: false
+      - uses: ksh5324/fsd-check-ci@v1
+```
+
 ## How It Works
 
 - Runs in order: `install` (optional) -> `lint` -> `typecheck` -> `fsd` -> `build`.

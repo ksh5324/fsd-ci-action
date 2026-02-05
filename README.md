@@ -4,6 +4,28 @@ Steiger 기반 FSD 검사와 lint/type/build를 한 번에 실행하고, 결과�
 FSD/타입/린트/빌드 상태를 한눈에 확인할 수 있어 PR 리뷰와 품질 확인이 빠릅니다.
 English version: [README_EN.md](README_EN.md)
 
+## Quick Start
+
+1) 프로젝트에 `pnpm fsd:check`, `pnpm typecheck`, `pnpm build` 스크립트가 있는지 확인
+2) `.node-version` 파일이 없다면 `setup-node`를 `node-version`으로 바꿔 사용
+3) 아래 최소 예시를 워크플로에 추가
+
+```yaml
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.27.0
+          run_install: false
+      - uses: ksh5324/fsd-check-ci@v1
+```
+
 ## 동작 방식
 
 - `install`(선택) → `lint` → `typecheck` → `fsd` → `build` 순서로 실행됩니다.
