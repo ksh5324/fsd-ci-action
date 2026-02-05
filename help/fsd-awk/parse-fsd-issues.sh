@@ -27,9 +27,17 @@ awk '
     if (file!="") print "fsd\t" file "\t" msg
     next
   }
-  NF>0 && $0 !~ /This[[:space:]]/ {
+  {
     line=strip_prefix($0)
-    if (line!="") file=line
+    if (line=="") next
+    if (match(line, /(src\/[^[:space:]]+|app\/[^[:space:]]+|shared\/[^[:space:]]+|features\/[^[:space:]]+|entities\/[^[:space:]]+|widgets\/[^[:space:]]+|pages\/[^[:space:]]+|processes\/[^[:space:]]+)/)) {
+      file=substr(line, RSTART, RLENGTH)
+      next
+    }
+    if (file!="") {
+      print "fsd\t" file "\t" line
+      next
+    }
   }
 ' "$log_file" >> "$output_file" || true
 
