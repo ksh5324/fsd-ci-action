@@ -55,7 +55,7 @@ jobs:
         with:
           version: 10.27.0
           run_install: false
-      - uses: ksh5324/fsd-check-ci@v2
+      - uses: ksh5324/fsd-ci-action@v2
         with:
           working-directory: .
 ```
@@ -169,7 +169,7 @@ jobs:
         with:
           version: 10.27.0
           run_install: false
-      - uses: ksh5324/fsd-check-ci@v2
+      - uses: ksh5324/fsd-ci-action@v2
         with:
           working-directory: ${{ env.WORKDIR }}
           comment-on-pr: true
@@ -254,7 +254,7 @@ jobs:
           run_install: false
       - name: FSD CI Checks
         id: fsd
-        uses: ksh5324/fsd-check-ci@v2
+        uses: ksh5324/fsd-ci-action@v2
         with:
           working-directory: .
           comment-on-pr: true
