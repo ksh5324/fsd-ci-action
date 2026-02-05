@@ -1,0 +1,182 @@
+name: "FSD CI Checks"
+description: "Run FSD checks with Steiger and generate CI summary tables."
+inputs:
+  working-directory:
+    description: "Working directory (relative to repo root)"
+    default: "."
+    required: false
+  run-install:
+    description: "Whether to run dependency install"
+    default: "true"
+    required: false
+  install-command:
+    description: "Install command"
+    default: "pnpm install --frozen-lockfile"
+    required: false
+  lint-command:
+    description: "Lint command"
+    default: "pnpm exec eslint . -f unix --max-warnings=0"
+    required: false
+  typecheck-command:
+    description: "Typecheck command"
+    default: "pnpm typecheck"
+    required: false
+  fsd-command:
+    description: "FSD check command"
+    default: "pnpm fsd:check"
+    required: false
+  run-build:
+    description: "Whether to run build"
+    default: "true"
+    required: false
+  build-command:
+    description: "Build command"
+    default: "pnpm build"
+    required: false
+outputs:
+  lint-exit-code:
+    description: "Lint exit code"
+    value: ${{ steps.run-checks.outputs.lint_exit_code }}
+  typecheck-exit-code:
+    description: "Typecheck exit code"
+    value: ${{ steps.run-checks.outputs.typecheck_exit_code }}
+  fsd-exit-code:
+    description: "FSD exit code"
+    value: ${{ steps.run-checks.outputs.fsd_exit_code }}
+  build-exit-code:
+    description: "Build exit code"
+    value: ${{ steps.run-checks.outputs.build_exit_code }}
+  fsd-has-errors:
+    description: "FSD errors detected (0/1)"
+    value: ${{ steps.run-checks.outputs.fsd_has_errors }}
+runs:
+  using: "composite"
+  steps:
+    - name: Install
+      if: ${{ inputs.run-install == 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd "${GITHUB_WORKSPACE}/${{ inputs.working-directory }}"
+        ${{ inputs.install-command }}
+
+    - name: Run Checks and Report
+      id: run-checks
+      shell: bash
+      run: |
+        set -o pipefail
+        set +e
+
+        workdir="${GITHUB_WORKSPACE}/${{ inputs.working-directory }}"
+        parse_script="${GITHUB_ACTION_PATH}/help/fsd-awk/parse-fsd-issues.sh"
+
+        cd "$workdir"
+        rm -f issues.tsv ci-report.md lint.log typecheck.log fsd.log build.log
+
+        ${{ inputs.lint-command }} 2>&1 | tee lint.log
+        lint_code=${PIPESTATUS[0]}
+
+        ${{ inputs.typecheck-command }} 2>&1 | tee typecheck.log
+        type_code=${PIPESTATUS[0]}
+
+        ${{ inputs.fsd-command }} 2>&1 | tee fsd.log
+        fsd_code=${PIPESTATUS[0]}
+        if [ -s fsd.log ] && grep -q "This " fsd.log; then
+          fsd_has_errors=1
+        else
+          fsd_has_errors=0
+        fi
+
+        if [ "${{ inputs.run-build }}" = "true" ]; then
+          ${{ inputs.build-command }} 2>&1 | tee build.log
+          build_code=${PIPESTATUS[0]}
+        else
+          build_code=0
+        fi
+
+        set -e
+
+        if [ "${lint_code:-0}" != "0" ] && [ -s lint.log ]; then
+          grep -E "^[^ ]+:[0-9]+:[0-9]+ " lint.log | \
+            awk -F: '{
+              file=$1;
+              msg=$4;
+              for (i=5;i<=NF;i++) msg=msg ":" $i;
+              print "lint\t" file "\t" msg
+            }' >> issues.tsv || true
+          if ! grep -q "^lint\t" issues.tsv 2>/dev/null; then
+            tail -n 5 lint.log | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
+              awk 'NF>0 {print "lint\t(see log)\t" $0}' >> issues.tsv || true
+          fi
+        fi
+
+        if [ "${type_code:-0}" != "0" ] && [ -s typecheck.log ]; then
+          grep -E "error TS[0-9]+:" typecheck.log | \
+            awk -F: '{
+              file=$1;
+              msg=$2;
+              for (i=3;i<=NF;i++) msg=msg ":" $i;
+              sub(/^ \([0-9]+,[0-9]+\)/,"",msg);
+              print "typecheck\t" file "\t" msg
+            }' >> issues.tsv || true
+          if ! grep -q "^typecheck\t" issues.tsv 2>/dev/null; then
+            tail -n 5 typecheck.log | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
+              awk 'NF>0 {print "typecheck\t(see log)\t" $0}' >> issues.tsv || true
+          fi
+        fi
+
+        if [ "${fsd_code:-0}" = "1" ] && [ -s fsd.log ]; then
+          "$parse_script" fsd.log issues.tsv || true
+          if ! grep -q "^fsd\t" issues.tsv 2>/dev/null; then
+            echo "fsd\t(see full log below)\tParser did not match FSD output format." >> issues.tsv
+          fi
+        fi
+
+        {
+          echo "<!-- ci-checks-summary -->"
+          echo "# CI Checks Summary"
+          echo ""
+          echo "## Lint"
+          echo ""
+          echo "| File | Message |"
+          echo "|---|---|"
+          if [ -s issues.tsv ]; then
+            awk -F'\t' '$1=="lint"{gsub("\\|","\\\\|",$2); gsub("\\|","\\\\|",$3); printf "| %s | %s |\n", $2, $3}' issues.tsv
+          fi
+          echo ""
+          echo "## Typecheck"
+          echo ""
+          echo "| File | Message |"
+          echo "|---|---|"
+          if [ -s issues.tsv ]; then
+            awk -F'\t' '$1=="typecheck"{gsub("\\|","\\\\|",$2); gsub("\\|","\\\\|",$3); printf "| %s | %s |\n", $2, $3}' issues.tsv
+          fi
+          echo ""
+          echo "## FSD"
+          echo ""
+          echo "| Slice | Message |"
+          echo "|---|---|"
+          if [ -s issues.tsv ]; then
+            awk -F'\t' '$1=="fsd"{gsub("\\|","\\\\|",$2); gsub("\\|","\\\\|",$3); printf "| %s | %s |\n", $2, $3}' issues.tsv
+          fi
+          echo ""
+
+          if [ "${build_code:-0}" != "0" ]; then
+            echo "## Build (errors)"
+            echo ""
+            echo '```'
+            if [ -s build.log ]; then
+              tail -n 200 build.log || true
+            else
+              echo "No build output captured."
+            fi
+            echo '```'
+            echo ""
+          fi
+        } | tee ci-report.md >> "$GITHUB_STEP_SUMMARY"
+
+        echo "lint_exit_code=${lint_code:-0}" >> "$GITHUB_OUTPUT"
+        echo "typecheck_exit_code=${type_code:-0}" >> "$GITHUB_OUTPUT"
+        echo "fsd_exit_code=${fsd_code:-0}" >> "$GITHUB_OUTPUT"
+        echo "build_exit_code=${build_code:-0}" >> "$GITHUB_OUTPUT"
+        echo "fsd_has_errors=${fsd_has_errors:-0}" >> "$GITHUB_OUTPUT"
