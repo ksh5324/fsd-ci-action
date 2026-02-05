@@ -177,6 +177,37 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+## 실패 처리(워크플로 실패로 만들기)
+
+기본 설정은 요약만 생성하고 워크플로를 실패시키지 않습니다.
+아래처럼 출력값을 확인해 실패 처리 스텝을 추가하세요.
+
+```yaml
+      - name: FSD CI Checks
+        id: fsd
+        uses: ksh5324/fsd-ci-action@v2
+        with:
+          working-directory: .
+
+      - name: Fail if checks failed
+        if: ${{ always() }}
+        run: |
+          lint_code="${{ steps.fsd.outputs.lint-exit-code }}"
+          type_code="${{ steps.fsd.outputs.typecheck-exit-code }}"
+          fsd_code="${{ steps.fsd.outputs.fsd-exit-code }}"
+          build_code="${{ steps.fsd.outputs.build-exit-code }}"
+          fsd_has_errors="${{ steps.fsd.outputs.fsd-has-errors }}"
+
+          if [ "${lint_code:-0}" != "0" ] || \
+             [ "${type_code:-0}" != "0" ] || \
+             [ "${build_code:-0}" != "0" ] || \
+             [ "${fsd_has_errors:-0}" = "1" ] || \
+             [ "${fsd_code:-0}" != "0" ]; then
+            echo "One or more checks failed."
+            exit 1
+          fi
+```
+
 ## 그대로 붙여서 사용하는 전체 예시
 
 PR 코멘트까지 포함된 실제 워크플로 예시입니다. 그대로 복사해 사용해도 됩니다.

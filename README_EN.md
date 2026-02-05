@@ -176,6 +176,37 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+## Fail The Workflow
+
+By default, this action only summarizes results and does not fail the workflow.
+Add a failure step based on outputs like below.
+
+```yaml
+      - name: FSD CI Checks
+        id: fsd
+        uses: ksh5324/fsd-ci-action@v2
+        with:
+          working-directory: .
+
+      - name: Fail if checks failed
+        if: ${{ always() }}
+        run: |
+          lint_code="${{ steps.fsd.outputs.lint-exit-code }}"
+          type_code="${{ steps.fsd.outputs.typecheck-exit-code }}"
+          fsd_code="${{ steps.fsd.outputs.fsd-exit-code }}"
+          build_code="${{ steps.fsd.outputs.build-exit-code }}"
+          fsd_has_errors="${{ steps.fsd.outputs.fsd-has-errors }}"
+
+          if [ "${lint_code:-0}" != "0" ] || \
+             [ "${type_code:-0}" != "0" ] || \
+             [ "${build_code:-0}" != "0" ] || \
+             [ "${fsd_has_errors:-0}" = "1" ] || \
+             [ "${fsd_code:-0}" != "0" ]; then
+            echo "One or more checks failed."
+            exit 1
+          fi
+```
+
 ## Full Example You Can Copy
 
 This is a full workflow example including PR comments. You can copy it as-is.
