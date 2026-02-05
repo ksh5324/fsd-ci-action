@@ -23,7 +23,7 @@ jobs:
         with:
           version: 10.27.0
           run_install: false
-      - uses: ksh5324/fsd-check-ci@v2
+      - uses: ksh5324/fsd-ci-action@v2
 ```
 
 ## 동작 방식

@@ -227,6 +227,6 @@ runs:
         name: fsd-ci-report
         if-no-files-found: ignore
         path: |
-          ${{ github.workspace }}/${{ inputs.working-directory }}/ci-report.md
-          ${{ github.workspace }}/${{ inputs.working-directory }}/issues.tsv
-          ${{ github.workspace }}/${{ inputs.working-directory }}/*.log
+          ${{ inputs.working-directory == '.' && format('{0}/ci-report.md', github.workspace) || format('{0}/{1}/ci-report.md', github.workspace, inputs.working-directory) }}
+          ${{ inputs.working-directory == '.' && format('{0}/issues.tsv', github.workspace) || format('{0}/{1}/issues.tsv', github.workspace, inputs.working-directory) }}
+          ${{ inputs.working-directory == '.' && format('{0}/*.log', github.workspace) || format('{0}/{1}/*.log', github.workspace, inputs.working-directory) }}
