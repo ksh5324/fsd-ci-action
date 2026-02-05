@@ -3,7 +3,8 @@
 Steiger 기반 FSD 검사와 lint/type/build를 한 번에 실행하고, 결과를 Summary/PR 코멘트로 보기 쉽게 정리해주는 CI Action입니다.
 FSD/타입/린트/빌드 상태를 한눈에 확인할 수 있어 PR 리뷰와 품질 확인이 빠릅니다.
 English version: [README_EN.md](README_EN.md)
-예시 PR: https://github.com/ksh5324/fsd-ci-check-example/pull/2
+
+예시 PR 및 CI 소스: https://github.com/ksh5324/fsd-ci-check-example/pull/2
 
 ## Quick Start
 
