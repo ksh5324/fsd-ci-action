@@ -5,6 +5,7 @@ FSD/타입/린트/빌드 상태를 한눈에 확인할 수 있어 PR 리뷰와 �
 English version: [README_EN.md](README_EN.md)
 
 예시 PR 및 CI 소스: https://github.com/ksh5324/fsd-ci-check-example/pull/2
+노트: lint/typecheck에서 불필요한 항목이 표시되는 문제를 수정 중이며, v2.1.0으로 배포 예정입니다.
 
 ## Quick Start
 
