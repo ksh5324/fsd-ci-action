@@ -41,16 +41,36 @@ jobs:
 
 ## 출력값
 
-- `lint-exit-code`
-- `typecheck-exit-code`
-- `fsd-exit-code`
-- `build-exit-code`
-- `fsd-has-errors`
+- `lint-exit-code`: lint 명령의 종료 코드 (0=성공, 그 외=실패)
+- `typecheck-exit-code`: typecheck 명령의 종료 코드
+- `fsd-exit-code`: FSD 검사 명령의 종료 코드
+- `build-exit-code`: build 명령의 종료 코드
+- `fsd-has-errors`: FSD 오류 감지 여부 (0/1). FSD 로그가 특정 패턴을 포함할 때 1로 설정됩니다.
 
 ## 생성 파일
 
-- `issues.tsv`
-- `ci-report.md`
+- `issues.tsv`: lint/typecheck/fsd 이슈를 탭 구분으로 기록한 파일
+- `ci-report.md`: 이슈를 표로 정리한 요약 리포트. `GITHUB_STEP_SUMMARY`에도 자동으로 표시됩니다.
+
+## 표시 위치 / 활용
+
+- `ci-report.md`와 동일한 요약이 Actions 실행 화면의 **Summary** 탭에 표시됩니다.
+- 출력값은 워크플로에서 조건 분기나 실패 처리를 위해 사용할 수 있습니다.
+  예: `if: ${{ steps.run-checks.outputs.lint-exit-code != '0' }}`
+
+## 예시 화면
+
+실제 PR에 코멘트로 붙은 결과 화면
+
+![PR comment usage](image/PR_use_source.png)
+
+빌드 실패가 Summary/코멘트에 표시된 화면
+
+![PR comment build error](image/PR_comment_build.png)
+
+lint + FSD 오류가 Summary/코멘트에 표시된 화면
+
+![PR comment lint and fsd errors](image/PR_comment_lint_fsd.png)
 
 ## 참고
 
