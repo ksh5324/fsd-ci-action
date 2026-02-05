@@ -156,6 +156,24 @@ jobs:
 ## 그대로 붙여서 사용하는 전체 예시
 
 PR 코멘트까지 포함된 실제 워크플로 예시입니다. 그대로 복사해 사용해도 됩니다.
+아래 예시는 `pnpm` 기반 프로젝트를 기준으로 합니다.
+
+필요한 준비 사항:
+
+- Node.js와 `pnpm`이 설치된 환경
+- `.node-version` 파일이 프로젝트에 존재 (또는 `setup-node` 입력을 직접 버전으로 변경)
+- 프로젝트에 `pnpm fsd:check`, `pnpm typecheck`, `pnpm build` 스크립트가 존재
+- FSD 검사 도구(예: `steiger`)가 프로젝트 의존성에 포함
+
+## 전체 예시 플로우
+
+워크플로는 아래 순서로 진행됩니다.
+
+1) 체크아웃 → Node/pnpm 세팅 → 의존성 설치
+2) lint/typecheck/fsd/build 실행 (실패해도 계속 진행)
+3) 로그를 파싱해 `ci-report.md`/Summary 생성
+4) PR 코멘트 생성/갱신
+5) 마지막에 실패 조건을 모아 워크플로 성공/실패 결정
 
 ```yaml
 name: CI
